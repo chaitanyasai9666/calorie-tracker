@@ -59,6 +59,11 @@ test("create profile, quick add a food, totals update", () => {
   $("qa").dispatchEvent(new w.Event("submit", { cancelable: true }));
   assert.equal($("totKcal").textContent, "95");
   assert.match($("totFib").textContent, /^4\.4 g of \d+ g$/);
+  // Default profile (male, 30, 175 cm, 75 kg, light activity, -500 kcal): protein 2.0 g/kg while losing.
+  assert.equal($("calcP").textContent, "150 g");
+  assert.equal($("totP").textContent, "0 g of 150 g");
+  assert.match($("totC").textContent, /^0 g of \d+ g$/);
+  assert.match($("totF").textContent, /^0 g of \d+ g$/);
   assert.equal($("log").children.length, 1);
   assert.equal($("log").querySelector(".nm small").textContent, "Protein 0 g · Carbs 0 g · Fat 0 g · Fiber 4.4 g", "each food shows its macros");
   assert.deepEqual(errors, []);
