@@ -69,8 +69,12 @@ h2 { font-family: var(--display); font-weight: 800; font-size: 1.15rem; margin: 
 .facts .row.indent { padding-left: 1.2em }
 .facts .big { display: flex; justify-content: space-between; align-items: baseline; font-family: var(--display); font-weight: 900 }
 .facts .big b { font-size: 2.2rem; font-variant-numeric: tabular-nums }
-.fibbar { height: 6px; background: var(--ring-track); border-radius: 99px; overflow: hidden; margin: 2px 0 4px 1.2em }
-.fibbar i { display: block; height: 100%; width: 0; background: var(--sky) }
+.mbar { height: 6px; background: var(--ring-track); border-radius: 99px; overflow: hidden; margin: 2px 0 4px }
+.mbar.indent { margin-left: 1.2em }
+.mbar i { display: block; height: 100%; width: 0; background: var(--sky) }
+.mbar i.over { background: var(--warn) }
+.targets { display: grid; grid-template-columns: repeat(auto-fit, minmax(5.5em, 1fr)); gap: 10px }
+.targets .target { font-size: 1.35rem }
 .ringrow { display: flex; gap: 18px; align-items: center; flex-wrap: wrap }
 .ring { width: 132px; height: 132px; flex: none }
 .ring text { fill: var(--ink); font-family: var(--display) }
@@ -176,7 +180,7 @@ dialog#rating::backdrop { background: rgba(19, 38, 59, 0.45) }
 .status.err { color: var(--warn) }
 .target { font-family: var(--display); font-weight: 900; font-size: 1.8rem; font-variant-numeric: tabular-nums }
 .foot { color: var(--muted); font-size: 0.8rem; text-align: center }
-@media (prefers-reduced-motion: no-preference) { .ring circle.fg { transition: stroke-dashoffset 0.5s ease } .fibbar i { transition: width 0.5s ease } }
+@media (prefers-reduced-motion: no-preference) { .ring circle.fg { transition: stroke-dashoffset 0.5s ease } .mbar i { transition: width 0.5s ease } }
 </style>
 
 <section class="login" id="login" aria-labelledby="loginH">
@@ -283,10 +287,13 @@ dialog#rating::backdrop { background: rgba(19, 38, 59, 0.45) }
           <div class="small" style="text-align:right">Likely range <span id="totRange" style="font-family:var(--mono)">0–0</span> kcal</div>
           <div class="bar4"></div>
           <div class="row"><span><b>Protein</b></span><span id="totP">0 g</span></div>
+          <div class="mbar" aria-hidden="true"><i id="barP"></i></div>
           <div class="row"><span><b>Total Carbohydrate</b></span><span id="totC">0 g</span></div>
-          <div class="row indent"><span>Dietary Fiber</span><span id="totFib">0 g of 38 g</span></div>
-          <div class="fibbar" aria-hidden="true"><i id="fibBar"></i></div>
+          <div class="mbar" aria-hidden="true"><i id="barC"></i></div>
+          <div class="row indent"><span>Dietary Fiber</span><span id="totFib">0 g</span></div>
+          <div class="mbar indent" aria-hidden="true"><i id="fibBar"></i></div>
           <div class="row"><span><b>Total Fat</b></span><span id="totF">0 g</span></div>
+          <div class="mbar" aria-hidden="true"><i id="barF"></i></div>
           <div class="bar8"></div>
           <div class="small">Macros and fiber come from Claude's estimates and anything you enter in Quick add.</div>
         </div>
@@ -391,12 +398,15 @@ dialog#rating::backdrop { background: rgba(19, 38, 59, 0.45) }
             <option value="500">Gain about 0.5 kg per week (+500 kcal)</option>
           </select></label>
         </form>
-        <div class="row3">
-          <div><div class="small">Daily target</div><div class="target" id="calcTarget">–</div></div>
-          <div><div class="small">Fiber goal</div><div class="target" id="calcFiber">–</div></div>
-          <div><div class="small">BMR · Maintenance</div><div class="small" id="calcDetail" style="font-family:var(--mono)">–</div></div>
+        <div class="targets" aria-label="Your daily targets">
+          <div><div class="small">Calories</div><div class="target" id="calcTarget">–</div></div>
+          <div><div class="small">Protein</div><div class="target" id="calcP">–</div></div>
+          <div><div class="small">Carbs</div><div class="target" id="calcC">–</div></div>
+          <div><div class="small">Fat</div><div class="target" id="calcF">–</div></div>
+          <div><div class="small">Fiber</div><div class="target" id="calcFiber">–</div></div>
         </div>
-        <div class="small">Calories use the Mifflin–St Jeor equation. The fiber goal follows the common guideline of 38 g for men and 25 g for women. Changes save automatically.</div>
+        <div class="small">BMR · maintenance: <span id="calcDetail" style="font-family:var(--mono)">–</span></div>
+        <div class="small">Calories use the Mifflin–St Jeor equation. Protein is 1.6 g per kg of body weight (2.0 g/kg when losing weight, to protect muscle), fat is 25% of calories, carbs fill the rest, and fiber is 14 g per 1,000 kcal. Changes save automatically.</div>
       </section>
     </div>
   </div>
@@ -434,7 +444,18 @@ function calcTarget(p) {
   const tdee = bmr * p.activity;
   // Floor keeps a cut from dropping below a commonly cited safe minimum.
   const target = Math.max(p.sex === "f" ? 1200 : 1500, tdee + p.goal);
-  return { bmr: Math.round(bmr), tdee: Math.round(tdee), target: Math.round(target), fiber: p.sex === "f" ? 25 : 38 };
+  const kcal = Math.round(target);
+  // Macro targets: protein 1.6 g/kg (2.0 g/kg while losing weight, to keep muscle), fat 25% of calories,
+  // carbs fill the rest, fiber 14 g per 1,000 kcal (US Dietary Guidelines).
+  const protein = Math.round(p.weight * (p.goal < 0 ? 2.0 : 1.6));
+  const fat = Math.round(kcal * 0.25 / 9);
+  const carbs = Math.max(0, Math.round((kcal - protein * 4 - fat * 9) / 4));
+  return { bmr: Math.round(bmr), tdee: Math.round(tdee), target: kcal, protein, fat, carbs, fiber: Math.round(kcal / 1000 * 14) };
+}
+{
+  const t = calcTarget({ sex: "m", age: 30, height: 175, weight: 70, activity: 1, goal: 0 });
+  console.assert(t.protein === 112 && t.fat === 46 && t.carbs === 197 && t.fiber === 23, "macro targets self-check");
+  console.assert(Math.abs(t.protein * 4 + t.carbs * 4 + t.fat * 9 - t.target) <= 6, "macro calories add up to target");
 }
 console.assert(calcTarget({ sex: "m", age: 30, height: 175, weight: 70, activity: 1, goal: 0 }).bmr === 1649, "BMR self-check");
 console.assert(calcTarget({ sex: "f", age: 30, height: 165, weight: 60, activity: 1.2, goal: -500 }).target === 1200, "floor self-check");
@@ -579,6 +600,7 @@ function renderAll() {
   const t = calcTarget(profile);
   $("calcTarget").textContent = fmt(t.target) + " kcal";
   $("calcFiber").textContent = t.fiber + " g";
+  $("calcP").textContent = t.protein + " g"; $("calcC").textContent = t.carbs + " g"; $("calcF").textContent = t.fat + " g";
   $("calcDetail").textContent = fmt(t.bmr) + " · " + fmt(t.tdee) + " kcal";
 
   const sum = f => items.reduce((a, x) => a + (Number(x[f]) || 0), 0);
@@ -586,11 +608,16 @@ function renderAll() {
   $("totKcal").textContent = fmt(kcal);
   const lo = items.reduce((a, x) => a + (Number(x.calLo ?? x.calories) || 0), 0), hi = items.reduce((a, x) => a + (Number(x.calHi ?? x.calories) || 0), 0);
   $("totRange").textContent = fmt(lo) + "–" + fmt(hi);
-  $("totP").textContent = fmt(sum("protein")) + " g";
-  $("totC").textContent = fmt(sum("carbs")) + " g";
-  $("totF").textContent = fmt(sum("fat")) + " g";
-  $("totFib").textContent = (Math.round(fib * 10) / 10) + " g of " + t.fiber + " g";
-  $("fibBar").style.width = Math.min(100, fib / t.fiber * 100) + "%";
+  // Each nutrient against its daily target; carbs and fat turn orange once more than 10% over.
+  const vsTarget = (txt, barId, val, goal, warnOver) => {
+    $(txt).textContent = r1(val) + " g of " + goal + " g";
+    $(barId).style.width = Math.min(100, goal ? val / goal * 100 : 0) + "%";
+    $(barId).classList.toggle("over", !!warnOver && val > goal * 1.1);
+  };
+  vsTarget("totP", "barP", sum("protein"), t.protein);
+  vsTarget("totC", "barC", sum("carbs"), t.carbs, true);
+  vsTarget("totF", "barF", sum("fat"), t.fat, true);
+  vsTarget("totFib", "fibBar", fib, t.fiber);
   $("itemsCount").textContent = items.length + (items.length === 1 ? " item logged" : " items logged");
   $("remaining").textContent = left >= 0 ? fmt(left) + " kcal" : fmt(-left) + " kcal over";
   $("remaining").classList.toggle("over", left < 0);
@@ -687,7 +714,7 @@ function rateDay(its, prof, done) {
   const t = calcTarget(prof);
   const sum = f => its.reduce((a, x) => a + (Number(x[f]) || 0), 0);
   const kcal = sum("calories"), fib = sum("fiber"), pro = sum("protein");
-  const proGoal = Math.round(prof.weight * 1.2); // g/day; a common target for active adults
+  const proGoal = t.protein;
   const meals = new Set(its.map(x => x.meal).filter(m => m === "Breakfast" || m === "Lunch" || m === "Dinner")).size;
   const dev = kcal ? Math.abs(kcal - t.target) / t.target : 1;
   const parts = [
@@ -703,8 +730,8 @@ function rateDay(its, prof, done) {
   return { score, out10: r1(score / 10), label, parts, kcal, target: t.target };
 }
 {
-  const p = { sex: "m", age: 30, height: 175, weight: 75, activity: 1.375, goal: 0 }, tg = calcTarget(p).target;
-  const perfect = [{ meal: "Breakfast", calories: tg, fiber: 38, protein: 90 }, { meal: "Lunch", calories: 0 }, { meal: "Dinner", calories: 0 }];
+  const p = { sex: "m", age: 30, height: 175, weight: 75, activity: 1.375, goal: 0 }, T = calcTarget(p), tg = T.target;
+  const perfect = [{ meal: "Breakfast", calories: tg, fiber: T.fiber, protein: T.protein }, { meal: "Lunch", calories: 0 }, { meal: "Dinner", calories: 0 }];
   console.assert(rateDay(perfect, p, true).out10 === 10, "perfect day self-check");
   console.assert(rateDay([], p, false).out10 === 0, "empty day self-check");
   console.assert(rateDay([{ meal: "Lunch", calories: tg * 1.35 }], p, false).parts[0].pts === 0, "35% over scores 0 for calories");
