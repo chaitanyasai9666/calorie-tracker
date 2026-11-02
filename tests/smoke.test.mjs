@@ -40,6 +40,7 @@ test("create profile, quick add a food, totals update", () => {
   assert.equal($("totKcal").textContent, "95");
   assert.match($("totFib").textContent, /^4\.4 g of \d+ g$/);
   assert.equal($("log").children.length, 1);
+  assert.equal($("log").querySelector(".nm small").textContent, "Protein 0 g · Carbs 0 g · Fat 0 g · Fiber 4.4 g", "each food shows its macros");
   assert.deepEqual(errors, []);
   dom.window.close();
 });

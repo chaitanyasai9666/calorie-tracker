@@ -84,6 +84,8 @@ h2 { font-family: var(--display); font-weight: 800; font-size: 1.15rem; margin: 
 .log li { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; gap: 10px; align-items: center; padding: 8px 0; border-top: 1px solid var(--line) }
 .log li:first-child { border-top: 0 }
 .log .nm { overflow-wrap: anywhere }
+.log .nm small, .est .nmcell .mac { display: block; font-family: var(--mono); font-size: 0.75rem; color: var(--muted); font-variant-numeric: tabular-nums }
+.est .nmcell .mac { color: var(--ink) }
 .log .kc { font-family: var(--mono); font-variant-numeric: tabular-nums; white-space: nowrap; text-align: right }
 .log .kc small { display: block; color: var(--muted); font-size: 0.75rem }
 .chip { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em; font-weight: 600; background: var(--accent-soft); color: var(--accent); padding: 2px 8px; border-radius: 99px; white-space: nowrap }
@@ -606,6 +608,7 @@ function renderAll() {
     const li = document.createElement("li");
     const chip = document.createElement("span"); chip.className = "chip"; chip.textContent = x.meal || "Snack";
     const nm = document.createElement("span"); nm.className = "nm"; nm.textContent = x.name;
+    const mac = document.createElement("small"); mac.textContent = macroLine(x); nm.append(mac);
     const kc = document.createElement("span"); kc.className = "kc"; kc.textContent = fmt(x.calories) + " kcal";
     const extra = [rangeText(x) ? "likely " + rangeText(x) : "",
       x.dish ? (x.ingredients?.length || 0) + " ingredients" + (x.portion < 100 ? " · " + x.portion + "% eaten" : "")
@@ -999,8 +1002,10 @@ function renderEstimate(note) {
     const nm = document.createElement("span"); nm.className = "nmcell";
     const nmt = document.createElement("span"); nmt.textContent = x.name;
     const basis = document.createElement("small");
+    const mac = document.createElement("small"); mac.className = "mac";
     const tot = document.createElement("span"); tot.className = "tot";
     const paint = () => {
+      mac.textContent = "This amount: " + macroLine(x);
       basis.textContent = [x.state, x.source].filter(Boolean).join(" · ") + (x.state || x.source ? " · " : "") +
         (x.k100lo !== x.k100hi ? "likely " + x.k100lo + "–" + x.k100hi + " kcal/100 g · " : "") +
         "P " + x.p100 + " · C " + x.c100 + " · F " + x.f100 + " · fiber " + x.fib100 + " g per 100 g";
@@ -1008,7 +1013,7 @@ function renderEstimate(note) {
       if (rangeText(x)) { const s = document.createElement("small"); s.textContent = rangeText(x); tot.append(s); }
       estTotal();
     };
-    nm.append(nmt, basis);
+    nm.append(nmt, mac, basis);
     const g = document.createElement("input"); g.type = "number"; g.min = "0"; g.step = "1"; g.value = x.grams;
     g.id = "estg-" + i; g.setAttribute("aria-label", "Grams of " + x.name);
     g.oninput = () => { x.grams = num(g.value, 1, 5000); computeItem(x); paint(); };
@@ -1028,8 +1033,15 @@ function renderEstimate(note) {
 }
 const estTotal = () => {
   const f = dishOn() ? dishPortion() / 100 : 1, s = k => pending.reduce((a, x) => a + (Number(x[k]) || 0), 0) * f;
-  $("estTotal").textContent = (dishOn() ? "You ate " : "Total ") + fmt(s("calories")) + " kcal (likely " + fmt(s("calLo")) + "–" + fmt(s("calHi")) + ") · " + r1(s("fiber")) + " g fiber";
+  $("estTotal").textContent = (dishOn() ? "You ate " : "Total ") + fmt(s("calories")) + " kcal (likely " + fmt(s("calLo")) + "–" + fmt(s("calHi")) + ") · " +
+    macroLine({ protein: s("protein"), carbs: s("carbs"), fat: s("fat"), fiber: s("fiber") });
 };
+// Protein, carbs, fat and fiber in grams for one food or a sum of foods.
+function macroLine(x) {
+  const g = k => r1(Number(x[k]) || 0) + " g";
+  return "Protein " + g("protein") + " · Carbs " + g("carbs") + " · Fat " + g("fat") + " · Fiber " + g("fiber");
+}
+console.assert(macroLine({ protein: 56.25, carbs: 0, fat: 6.5, fiber: 0 }) === "Protein 56.3 g · Carbs 0 g · Fat 6.5 g · Fiber 0 g", "macro line self-check");
 // What "Add to log" and "Save food" store: one dish entry, or the separate items.
 const pendingEntries = () => dishOn()
   ? [cleanDish({ name: $("dishName").value, portion: dishPortion(), ingredients: pending })]
@@ -1138,7 +1150,8 @@ function renderSaved() {
     const add = document.createElement("button"); add.className = "add";
     const nm = document.createElement("span"); nm.textContent = f.name;
     const kc = document.createElement("small");
-    kc.textContent = fmt(f.items.reduce((a, x) => a + x.calories, 0)) + " kcal · " + (Math.round(f.items.reduce((a, x) => a + x.fiber, 0) * 10) / 10) + " g fiber";
+    const fs = k => f.items.reduce((a, x) => a + (Number(x[k]) || 0), 0);
+    kc.textContent = fmt(fs("calories")) + " kcal · " + macroLine({ protein: fs("protein"), carbs: fs("carbs"), fat: fs("fat"), fiber: fs("fiber") });
     add.append(nm, kc);
     add.title = f.items.map(x => x.dish ? x.name + " (" + (x.ingredients || []).map(g => g.name).join(", ") + ")" : x.name).join(", ");
     add.setAttribute("aria-label", "Add " + f.name + " to log");
