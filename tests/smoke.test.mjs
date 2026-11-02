@@ -28,6 +28,26 @@ test("page loads with no script errors and all self-checks pass", () => {
   dom.window.close();
 });
 
+test("without Claude the AI button is disabled with an explanation", () => {
+  const { dom, $ } = load();
+  assert.equal($("aiGo").disabled, true);
+  assert.match($("aiStatus").textContent, /Quick add/);
+  dom.window.close();
+});
+
+test("build outputs an installable app: manifest, icons, service worker", () => {
+  const read = p => readFileSync(new URL("../dist/" + p, import.meta.url));
+  const m = JSON.parse(read("manifest.webmanifest"));
+  assert.equal(m.display, "standalone");
+  for (const icon of m.icons) {
+    const png = read(icon.src);
+    assert.equal(png.subarray(1, 4).toString(), "PNG", icon.src + " is a PNG");
+    assert.equal(`${png.readUInt32BE(16)}x${png.readUInt32BE(20)}`, icon.sizes, icon.src + " size");
+  }
+  assert.match(read("sw.js").toString(), /addEventListener\("fetch"/);
+  assert.match(read("index.html").toString(), /rel="manifest"/);
+});
+
 test("create profile, quick add a food, totals update", () => {
   const { dom, w, $, errors } = load();
   $("pfName").value = "Test";
