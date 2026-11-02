@@ -1,0 +1,14 @@
+{
+  "name": "calorie-tracker",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Plate Count: calorie and fiber tracker with AI meal estimates, streaks and daily ratings.",
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "test": "node scripts/build.mjs && node --test \"tests/*.test.mjs\""
+  },
+  "devDependencies": {
+    "jsdom": "^25.0.1"
+  }
+}
