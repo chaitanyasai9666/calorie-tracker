@@ -1193,10 +1193,15 @@ loadDay();
 armNightly();
 
 (async () => {
-  if (!window.claude?.use) return;
+  // Outside Claude (e.g. the installed phone app) there is no AI: say so up front instead of failing on click.
+  const noAi = () => {
+    aiLocked = true; $("aiGo").disabled = true; $("refineGo").disabled = true;
+    aiStatus("AI estimates need the Claude version of Plate Count. Here, use Quick add or your Saved foods.");
+  };
+  if (!window.claude?.use) { noAi(); return; }
   claude.use("sample").then(async s => {
     sample = s;
-    if (!s) return;
+    if (!s) { noAi(); return; }
     const lim = await s.limits().catch(() => null);
     if (lim?.images) { $("photoWrap").hidden = false; $("aiPhoto").accept = lim.images.mediaTypes.join(","); }
   });
